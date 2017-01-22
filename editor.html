@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Online Html Editor</title>
+<style>
+
+html{
+    min-height:100%;/* make sure it is at least as tall as the viewport */
+    min-width:100%;
+    position:relative
+}
+body{
+    height:100%; /* force the BODY element to match the height of the HTML element */
+    width:100%;
+}
+#code{
+	width:98%;
+}
+.MyCursorClass {
+    position: absolute;
+    border-left: 2px solid red;
+}
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/zurb-ink/1.0.5/ink.css" />
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+<script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+<script src="http://ajaxorg.github.com/ace/build/src/ace.js"></script>
+
+</head>
+
+<body>
+
+<div style="position:absolute;background-color:#55aa85;padding:5px;top:0;bottom:0;left:0;right:0;">
+
+<div style="background-color:white; width:50%;height:100%;position:relative;float:left;">
+
+<h3>Type your code here</h3>
+<div contenteditable="false"  id="code"  style="background-color:white;border:solid;width:90%;height:90%;position:absolute;float:left;"></div>
+
+</div>
+
+<div style="background-color:white;width:50%;height:100%;position:relative;float:right;" >
+<h3>Result</h3>
+<p id="result"></p>
+</div>
+
+</div>
+<script>
+
+var editor=ace.edit('code');
+var Range = ace.require('ace/range').Range;
+var pos={};
+
+$(document).ready(function(){
+
+
+	var socket=io();
+	socket.emit('newusr');
+
+	mycursor=editor.getCursorPosition(); //get cursor position
+
+	$('#code').keyup(function(e)
+	{
+		//get cursor position after keyup
+		mycursor1=editor.getCursorPosition();
+		pos1=mycursor1;	
+		
+		var range = new Range(pos1.row,mycursor.column,pos1.row,pos1.column);
+		mycursor=editor.getCursorPosition();
+		
+		var kc=e.keyCode; // get key code of key pressed
+
+		
+		if(kc!='17' && kc!='18' && kc!='20' && kc!='16' && (kc<'37' || kc>'40'))
+		{
+				pos1.column-=1;
+				socket.emit('write',{
+						'txt':editor.session.getTextRange(range),
+						'x':editor.getValue(),
+						'cursor':pos1,
+						'kc':kc
+						});
+		}
+		
+
+	});
+	
+	socket.on('nwusr',function()
+	{
+		socket.emit('welcome',editor.getValue());
+	});
+	socket.on('all',function(data)
+	{
+		console.log('all'); console.dir(data);
+
+		editor.setValue(data.x);
+		$('#result').html(data.compiled);
+		editor.selection.clearSelection();
+	});
+	socket.on('print',function(data)
+	{
+		console.log('print'); console.dir(data);
+		//$('#result').html(data.x);
+		$('#result').html(data.compiled);
+	});
+	
+	socket.on('char',function(data)
+	{
+		savedchar=data;
+	});
+
+	socket.on('printcode',function(data)
+	{
+		if(data.kc=='8') // backspace
+		{	
+			// get range and replace the char with ''
+			var range2=new Range(data.cursor.row,data.cursor.column+1,data.cursor.row,data.cursor.column+2);
+			editor.session.replace(range2,'');
+		}
+		else if(data.kc=='13') // enter
+		{	
+			editor.session.insert(data.cursor,'\r\n'); //insert new line
+			editor.gotoLine(mycursor.row+1,mycursor.column+1,false);
+		}
+		else
+		{
+			// insert the new char to the cursor position
+			editor.session.insert(data.cursor,data.txt);
+		}
+		
+	});
+
+	
+	
+});
+
+</script>
+</body>
+</html>
+
+
+
+
